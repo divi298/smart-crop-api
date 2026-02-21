@@ -28,7 +28,7 @@ def predict():
 
     # ----- Step 1: Predict NPK -----
     sensor_df = pd.DataFrame([[temp, humidity, soil]],
-                             columns=['temperature','humidity','soil'])
+                             columns=['temperature','humidity','soil_moisture'])
 
     sensor_scaled = npk_scaler.transform(sensor_df)
     predicted_npk = npk_model.predict(sensor_scaled)
@@ -57,3 +57,4 @@ def predict():
 
 if __name__ == "__main__":
     app.run()
+
