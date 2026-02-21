@@ -1,66 +1,58 @@
-from flask import Flask, request # pyright: ignore[reportMissingImports]
-import joblib # pyright: ignore[reportMissingImports]
-import numpy as np
+from flask import Flask, request
+import joblib
 import pandas as pd
+import numpy as np
 
 app = Flask(__name__)
 
-# -------- Load Stage 1 Model (NPK Prediction) --------
-model_npk = joblib.load("npk_model.pkl")
-scaler_npk = joblib.load("npk_scaler.pkl")
+# Load models
+npk_model = joblib.load("smart-crop-ai/npk_model.pkl")
+npk_scaler = joblib.load("smart-crop-ai/npk_scaler.pkl")
 
-# -------- Load Stage 2 Model (Crop Prediction) --------
-model_crop = joblib.load("crop_model.pkl")
-scaler_crop = joblib.load("crop_scaler.pkl")
+crop_model = joblib.load("smart-crop-ai/crop_model.pkl")
+crop_scaler = joblib.load("smart-crop-ai/crop_scaler.pkl")
 
 
 @app.route('/')
 def home():
-    return "Smart Crop Recommendation API Running (2-Stage ML)"
+    return "Smart Crop API Running Successfully"
 
 
 @app.route('/predict')
 def predict():
-    try:
-        # -------- Get Sensor Values --------
-        temp = float(request.args.get('temp'))
-        humidity = float(request.args.get('humidity'))
-        soil = float(request.args.get('soil'))
 
-        # -------- Stage 1: Predict NPK --------
-        npk_input = pd.DataFrame(
-            [[temp, humidity, soil]],
-            columns=['temperature', 'humidity', 'soil_moisture']
-        )
+    # Get sensor values
+    temp = float(request.args.get('temp'))
+    humidity = float(request.args.get('humidity'))
+    soil = float(request.args.get('soil'))
 
-        npk_scaled = scaler_npk.transform(npk_input)
-        predicted_npk = model_npk.predict(npk_scaled)
+    # ----- Step 1: Predict NPK -----
+    sensor_df = pd.DataFrame([[temp, humidity, soil]],
+                             columns=['temperature','humidity','soil'])
 
-        N, P, K = predicted_npk[0]
+    sensor_scaled = npk_scaler.transform(sensor_df)
+    predicted_npk = npk_model.predict(sensor_scaled)
 
-        # -------- Stage 2: Predict Crop --------
-        crop_input = pd.DataFrame(
-            [[N, P, K, temp, humidity, soil]],
-            columns=['N', 'P', 'K', 'temperature', 'humidity', 'soil_moisture']
-        )
+    N = predicted_npk[0][0]
+    P = predicted_npk[0][1]
+    K = predicted_npk[0][2]
 
-        crop_scaled = scaler_crop.transform(crop_input)
-        crop_prediction = model_crop.predict(crop_scaled)
+    # ----- Step 2: Predict Crop -----
+    crop_df = pd.DataFrame([[N, P, K, temp, humidity]],
+                           columns=['N','P','K','temperature','humidity'])
 
-        result = {
-            "Temperature": temp,
-            "Humidity": humidity,
-            "Soil_Moisture": soil,
-            "Predicted_N": round(N, 2),
-            "Predicted_P": round(P, 2),
-            "Predicted_K": round(K, 2),
-            "Recommended_Crop": crop_prediction[0]
-        }
+    crop_scaled = crop_scaler.transform(crop_df)
+    crop_prediction = crop_model.predict(crop_scaled)
 
-        return result
-
-    except Exception as e:
-        return {"error": str(e)}
+    return {
+        "Temperature": temp,
+        "Humidity": humidity,
+        "Soil Moisture": soil,
+        "Predicted N": float(N),
+        "Predicted P": float(P),
+        "Predicted K": float(K),
+        "Recommended Crop": crop_prediction[0]
+    }
 
 
 if __name__ == "__main__":
